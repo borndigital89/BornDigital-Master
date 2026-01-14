@@ -16,7 +16,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 /**
  * 🔴 Theme-Ordnername
  */
-define( 'MYTHEME_SLUG', 'BornDigital-Master-main' );
+define( 'MYTHEME_SLUG', 'borndigital' );
 
 /**
  * 🔴 GitHub Repo Owner
