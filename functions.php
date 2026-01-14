@@ -6,6 +6,12 @@ add_action('wp_enqueue_scripts', function() {
     wp_enqueue_script('jquery');
 });
 
+/**
+ * Github updater
+ *
+ */
+require_once get_template_directory() . '/inc/github-updater.php';
+
 
 /**
  * Register shortcode for current Year.
