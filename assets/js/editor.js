@@ -25,14 +25,35 @@
     ];
 
     // --- Attribute erweitern ---
-    addFilter('blocks.registerBlockType','wba/add-attrs',(settings)=>{
-        settings.attributes = Object.assign({}, settings.attributes, {
-            wbaAnimation: { type: 'string', default: '' },
-            wbaDelay: { type: 'string', default: '0s' },
-            wbaInView: { type: 'boolean', default: false }
-        });
-        return settings;
-    });
+	addFilter(
+	  'blocks.getSaveContent.extraProps',
+	  'wba/add-extra-class',
+	  ( extraProps, blockType, attributes ) => {
+
+		// ❌ Dynamische Blöcke ausschließen
+		if ( blockType && blockType.renderCallback ) {
+		  return extraProps;
+		}
+
+		if ( attributes && attributes.wbaAnimation ) {
+		  extraProps.className =
+			( extraProps.className || '' ) +
+			' animate__animated animate__' +
+			attributes.wbaAnimation;
+
+		  if ( attributes.wbaInView ) {
+			extraProps.className += ' wba-observe';
+		  }
+
+		  extraProps.style = extraProps.style || {};
+		  extraProps.style.animationDelay = attributes.wbaDelay || '0s';
+		}
+
+		return extraProps;
+	  }
+	);
+
+
 
     // --- InspectorControls erweitern ---
     const withInspectorControls = createHigherOrderComponent( ( BlockEdit ) => {
