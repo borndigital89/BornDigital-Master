@@ -1,6 +1,7 @@
 <?php
 /**
- * GitHub Theme Updater – Private Repo (Releases API)
+ * GitHub Theme Updater – Öffentliches Repo
+ * Funktioniert auf allen Installationen ohne Token
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -9,47 +10,26 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 /*
 |--------------------------------------------------------------------------
-| 🔴 HIER MUSST DU SELBST ETWAS ÄNDERN
+| 🔴 KONFIGURATION – nur hier Werte anpassen
 |--------------------------------------------------------------------------
 */
-
-/**
- * 🔴 Theme-Ordnername
- */
-define( 'MYTHEME_SLUG', 'borndigital' );
-
-/**
- * 🔴 GitHub Repo Owner
- */
-define( 'MYTHEME_GITHUB_OWNER', 'borndigital89' );
-
-/**
- * 🔴 GitHub Repo Name
- */
-define( 'MYTHEME_GITHUB_REPO', 'BornDigital-Master' );
-
-/**
- * 🔴 GitHub Token (empfohlen in wp-config.php)
- */
-if ( ! defined( 'MYTHEME_GITHUB_TOKEN' ) ) {
-    return;
-}
+define( 'MYTHEME_SLUG', 'borndigital' );               // Theme-Ordnername
+define( 'MYTHEME_GITHUB_OWNER', 'borndigital89' );    // GitHub Username
+define( 'MYTHEME_GITHUB_REPO', 'BornDigital-Master' );// GitHub Repo Name
 
 /*
 |--------------------------------------------------------------------------
-| ❌ AB HIER NICHTS MEHR ÄNDERN
+| ✅ UPDATER-KLASSE
 |--------------------------------------------------------------------------
 */
-
 class MyTheme_GitHub_Updater {
 
     public function __construct() {
-
+        // Prüft auf Theme-Updates
         add_filter( 'site_transient_update_themes', [ $this, 'check_for_update' ] );
-        add_filter( 'upgrader_pre_download', [ $this, 'auth_download' ], 10, 3 );
-        add_filter( 'upgrader_post_install', [ $this, 'fix_directory' ], 10, 3 );
     }
 
+    // Prüft, ob ein Update verfügbar ist
     public function check_for_update( $transient ) {
 
         if ( empty( $transient->checked[ MYTHEME_SLUG ] ) ) {
@@ -60,15 +40,13 @@ class MyTheme_GitHub_Updater {
         $current = ltrim( $theme->get( 'Version' ), 'v' );
 
         $release = $this->get_latest_release();
-
-        if ( ! $release || empty( $release->tag_name ) ) {
-            return $transient;
-        }
+        if ( ! $release || empty( $release->tag_name ) ) return $transient;
 
         $remote_version = ltrim( $release->tag_name, 'v' );
 
         if ( version_compare( $current, $remote_version, '<' ) ) {
 
+            // Browser-download URL für öffentliche Repos funktioniert direkt
             $transient->response[ MYTHEME_SLUG ] = [
                 'theme'       => MYTHEME_SLUG,
                 'new_version' => $remote_version,
@@ -80,72 +58,26 @@ class MyTheme_GitHub_Updater {
         return $transient;
     }
 
-    public function auth_download( $reply, $package, $upgrader ) {
-
-        if ( strpos( $package, 'api.github.com/repos/' . MYTHEME_GITHUB_OWNER ) === false ) {
-            return $reply;
-        }
-
-        $response = wp_remote_get( $package, [
-            'headers' => [
-                'Authorization' => 'token ' . MYTHEME_GITHUB_TOKEN,
-                'User-Agent'    => 'WordPress Theme Updater'
-            ],
-            'timeout' => 30
-        ] );
-
-        if ( is_wp_error( $response ) ) {
-            return $response;
-        }
-
-        return wp_remote_retrieve_body( $response );
-    }
-
-    public function fix_directory( $response, $hook_extra, $result ) {
-
-        if (
-            empty( $hook_extra['theme'] ) ||
-            $hook_extra['theme'] !== MYTHEME_SLUG
-        ) {
-            return $response;
-        }
-
-        global $wp_filesystem;
-
-        $correct_path = WP_CONTENT_DIR . '/themes/' . MYTHEME_SLUG;
-
-        if ( $wp_filesystem->is_dir( $result['destination'] ) ) {
-            $wp_filesystem->move( $result['destination'], $correct_path );
-            $result['destination'] = $correct_path;
-        }
-
-        return $result;
-    }
-
+    // Holt das neueste Release von GitHub
     private function get_latest_release() {
-
-        $request = wp_remote_get(
-            sprintf(
-                'https://api.github.com/repos/%s/%s/releases/latest',
-                MYTHEME_GITHUB_OWNER,
-                MYTHEME_GITHUB_REPO
-            ),
-            [
-                'headers' => [
-                    'Authorization' => 'token ' . MYTHEME_GITHUB_TOKEN,
-                    'Accept'        => 'application/vnd.github+json',
-                    'User-Agent'    => 'WordPress Theme Updater'
-                ],
-                'timeout' => 15
-            ]
+        $url = sprintf(
+            'https://api.github.com/repos/%s/%s/releases/latest',
+            MYTHEME_GITHUB_OWNER,
+            MYTHEME_GITHUB_REPO
         );
 
-        if ( is_wp_error( $request ) ) {
-            return false;
-        }
+        $response = wp_remote_get( $url, [
+            'headers' => [
+                'Accept'     => 'application/vnd.github+json',
+                'User-Agent' => 'WordPress Theme Updater',
+            ],
+            'timeout' => 20,
+        ]);
 
-        return json_decode( wp_remote_retrieve_body( $request ) );
+        if ( is_wp_error( $response ) ) return false;
+        return json_decode( wp_remote_retrieve_body( $response ) );
     }
 }
 
+// Updater starten
 new MyTheme_GitHub_Updater();

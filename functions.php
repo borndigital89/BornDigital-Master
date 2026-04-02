@@ -63,19 +63,15 @@ add_shortcode('acf', function ($atts) {
 });
 
 
-/**
- * WP Block Animate (Fixed Editor)
- * Description: Adds Animate.css options to Gutenberg blocks. Robust loading (uses proper editor script dependencies).
- * Version: 1.0.2
- * Author: ChatGPT
- */
-
+/*
+Animate
+*/
 if ( ! defined( 'ABSPATH' ) ) {
     exit;
 }
 
 /**
- * Enqueue animate.css on the frontend.
+ * Animate.css auf Frontend laden
  */
 function wba_enqueue_frontend() {
     wp_enqueue_style(
@@ -88,110 +84,77 @@ function wba_enqueue_frontend() {
 add_action( 'wp_enqueue_scripts', 'wba_enqueue_frontend' );
 
 /**
- * Enqueue editor assets. The editor script is a separate file and registered with proper WP dependencies
- * so the editor globals (wp.blockEditor / wp.editor, wp.hooks, etc.) are available when it runs.
+ * Editor assets laden
  */
 function wba_enqueue_editor_assets() {
     wp_enqueue_style(
         'wba-animate-css',
         'https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css',
-        array(),
+        [],
         '4.1.1'
     );
 
-    // 1. URL für den Browser
-    $dir_uri = get_stylesheet_directory_uri() . '/assets/js/';
-    // 2. Absoluter Server-Pfad für filemtime (wichtig!)
-    $dir_path = get_stylesheet_directory() . '/assets/js/';
     $file = 'editor.js';
+    $dir_uri  = get_template_directory_uri() . '/assets/js/';
+    $dir_path = get_template_directory() . '/assets/js/';
+
+    if ( ! file_exists( $dir_path . $file ) ) return;
 
     wp_register_script(
         'wba-editor',
         $dir_uri . $file,
-        array( 'wp-hooks', 'wp-blocks', 'wp-element', 'wp-components', 'wp-compose', 'wp-block-editor' ),
-        file_exists($dir_path . $file) ? filemtime($dir_path . $file) : '1.0', 
+        [
+            'wp-hooks',
+            'wp-blocks',
+            'wp-element',
+            'wp-components',
+            'wp-compose',
+            'wp-block-editor',
+        ],
+        filemtime( $dir_path . $file ),
         true
     );
 
     wp_enqueue_script( 'wba-editor' );
 }
 add_action( 'enqueue_block_editor_assets', 'wba_enqueue_editor_assets' );
-/*
-// Frontend-Script für "nur bei Sichtbarkeit"
-add_action( 'wp_enqueue_scripts', function() {
-    wp_add_inline_script( 'jquery-core', "
-        document.addEventListener('DOMContentLoaded', function(){
-            const items = document.querySelectorAll('.wba-observe');
-            if ('IntersectionObserver' in window) {
-                let observer = new IntersectionObserver((entries)=>{
-                    entries.forEach(entry=>{
-                        if (entry.isIntersecting) {
-                            entry.target.classList.add('wba-visible');
-                            observer.unobserve(entry.target);
-                        }
-                    });
-                }, {threshold:0.2});
-                items.forEach(el=>{ observer.observe(el); });
-            } else {
-                items.forEach(el=>el.classList.add('wba-visible'));
-            }
-        });
-    ");
-    wp_add_inline_style( 'wba-animate-css', '.wba-observe{opacity:0;} .wba-observe.wba-visible{opacity:1;}' );
-});
-*/
 
-// Animate.css erst starten, wenn im Viewport
-function mytheme_enqueue_animate_on_scroll() {
+
+/**
+ * Inline JS Observer für „nur starten, wenn sichtbar“
+ */
+function wba_enqueue_animate_on_scroll() {
     wp_add_inline_script(
-        'jquery-core',
+        'jquery-core', // Tipp: Nutze 'wp-dom-ready' falls vorhanden, sonst ok
         "
-        document.addEventListener('DOMContentLoaded', () => {
-          const elements = document.querySelectorAll('.animate__animated');
+        document.addEventListener('DOMContentLoaded', function(){
+            var elements = document.querySelectorAll('.wba-observe');
+            
+            var observer = new IntersectionObserver(function(entries, obs){
+                entries.forEach(function(entry){
+                    if(entry.isIntersecting){
+                        var el = entry.target;
+                        var anim = el.getAttribute('data-wba-anim');
+                        
+                        if(anim){
+                            el.classList.add('animate__animated', 'animate__' + anim);
+                        }
 
-          // Welche Klassen sind reine Animationsnamen (nicht Utilities)?
-          const isAnimNameClass = (c) =>
-            c.startsWith('animate__') &&
-            c !== 'animate__animated' &&
-            !/^animate__delay-/.test(c) &&
-            !/^animate__repeat-/.test(c) &&
-            !['animate__infinite','animate__slower','animate__faster','animate__slow','animate__fast'].includes(c);
+                        el.style.visibility = 'visible';
+                        el.style.opacity = '1';
+                        obs.unobserve(el);
+                    }
+                });
+            }, { threshold: 0.1 });
 
-          const observer = new IntersectionObserver((entries, obs) => {
-            entries.forEach(entry => {
-              if (entry.isIntersecting) {
-                const el = entry.target;
-                const toAdd = el.dataset.animateCss || '';
-                if (toAdd) {
-                  toAdd.split(' ').forEach(cls => cls && el.classList.add(cls));
-                }
-                // sichtbar machen
-                el.style.visibility = '';
-                el.style.opacity = '';
-                obs.unobserve(el); // nur einmal abspielen; entferne diese Zeile für wiederholtes Abspielen
-              }
+            elements.forEach(function(el){
+                el.style.visibility = 'hidden';
+                el.style.opacity = '0';
+                observer.observe(el);
             });
-          }, { threshold: 0.2 });
-
-          elements.forEach(el => {
-            // vorhandene Animationsklassen merken und entfernen, damit sie NICHT sofort starten
-            const animClasses = Array.from(el.classList).filter(isAnimNameClass);
-            if (animClasses.length) {
-              el.dataset.animateCss = animClasses.join(' ');
-              animClasses.forEach(cls => el.classList.remove(cls));
-            }
-            // bis zum Start unsichtbar halten (keine Animation im Hintergrund)
-            el.style.visibility = 'hidden';
-            el.style.opacity = '0';
-            observer.observe(el);
-          });
         });
         "
     );
 }
-add_action('wp_enqueue_scripts', 'mytheme_enqueue_animate_on_scroll');
 
-
-
-
-?>
+add_action('wp_enqueue_scripts','wba_enqueue_animate_on_scroll');
