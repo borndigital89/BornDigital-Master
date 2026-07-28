@@ -158,3 +158,48 @@ function wba_enqueue_animate_on_scroll() {
 }
 
 add_action('wp_enqueue_scripts','wba_enqueue_animate_on_scroll');
+
+
+/**
+ * Custom Login Logo sicher und standardkonform einbinden
+ */
+function mastertheme_login_logo() { 
+    // Sicherstellen, dass das Logo im Theme existiert (child-theme-sicher via get_theme_file_uri)
+    $logo_url = get_theme_file_uri('/assets/images/login-logo.svg');
+    ?>
+    <style type="text/css">
+        #login h1 a, .login h1 a {
+            background-image: url('<?php echo esc_url($logo_url); ?>') !important;
+            height: 80px; /* Höhe des Logos flexibel anpassbar */
+            width: 320px; /* Breite des Logos flexibel anpassbar */
+            background-size: contain !important;
+            background-position: center center !important;
+            padding-bottom: 20px;
+        }
+    </style>
+    <?php 
+}
+add_action('login_enqueue_scripts', 'mastertheme_login_logo');
+
+/**
+ * Link des Login-Logos auf die Startseite der Website ändern
+ * 
+ * @return string Die URL der Startseite
+ */
+function mastertheme_login_logo_url() {
+    return esc_url(home_url('/'));
+}
+add_filter('login_headerurl', 'mastertheme_login_logo_url');
+
+/**
+ * Tooltip-Text (Title-Attribut) des Login-Logos ändern
+ * 
+ * @param string $headertext Der standardmäßige Headertext
+ * @return string Der bereinigte Seitenname für das HTML-Attribut
+ */
+function mastertheme_login_logo_url_title($headertext) {
+    // esc_attr() verhindert kaputtes HTML, falls der Seitenname Sonderzeichen enthält
+    return esc_attr(get_bloginfo('name'));
+}
+add_filter('login_headertext', 'mastertheme_login_logo_url_title');
+
