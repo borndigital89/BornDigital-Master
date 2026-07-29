@@ -3,13 +3,14 @@
  * GitHub Theme Updater – Öffentliches Repo
  * Funktioniert auf allen Installationen ohne Token
  *
- * Änderungen gegenüber der Vorversion:
+ * Enthält:
  * - Prüfung des HTTP-Status-Codes (fängt Rate-Limits/404 sauber ab)
  * - Caching der GitHub-Antwort via Transient (schont das Rate-Limit)
- * - error_log()-Meldungen bei Problemen, damit Fehler nicht mehr "still" verschwinden
+ * - error_log()-Meldungen bei echten Fehlern (kein Debug-Rauschen im Normalbetrieb)
  * - Fix für das ZIP-Ordner-Problem: GitHubs zipball_url erzeugt einen Ordner
  *   wie "owner-repo-<hash>", WordPress erwartet aber einen Ordner mit dem
- *   Theme-Slug – sonst wird beim Update der falsche Ordner installiert.
+ *   Theme-Slug – sonst wird beim Update ein zusätzlicher, falsch benannter
+ *   Ordner installiert statt das bestehende Theme zu aktualisieren.
  */
 if ( ! defined( 'ABSPATH' ) ) {
     exit;
@@ -32,7 +33,7 @@ define( 'MYTHEME_GITHUB_REPO', 'BornDigital-Master' );  // GitHub Repo Name
 class MyTheme_GitHub_Updater {
 
     private $cache_key = 'mytheme_github_release';
-    private $cache_ttl = 6 * HOUR_IN_SECONDS;   // reduziert API-Aufrufe -> weniger Rate-Limit-Probleme
+    private $cache_ttl = 6 * HOUR_IN_SECONDS;    // reduziert API-Aufrufe -> weniger Rate-Limit-Probleme
     private $error_ttl = 15 * MINUTE_IN_SECONDS; // bei Fehlern kürzer cachen, damit es sich zeitnah erholt
 
     public function __construct() {
@@ -103,8 +104,6 @@ class MyTheme_GitHub_Updater {
         $body = wp_remote_retrieve_body( $response );
 
         if ( 200 !== $code ) {
-            // Sehr häufige Ursache für "Update erscheint nicht mehr": Rate-Limit (403)
-            // oder Release ist als Draft/Pre-Release markiert (dann liefert GitHub 404).
             error_log( sprintf(
                 'MyTheme Updater: GitHub API antwortete mit Status %d. Antwort: %s',
                 $code,
@@ -117,7 +116,7 @@ class MyTheme_GitHub_Updater {
         $data = json_decode( $body );
 
         if ( empty( $data->tag_name ) ) {
-            error_log( 'MyTheme Updater: Kein tag_name in der Antwort. Ist v' . '... als Pre-Release/Draft markiert?' );
+            error_log( 'MyTheme Updater: Kein tag_name in der Antwort. Ist das Release als Pre-Release/Draft markiert?' );
             set_transient( $this->cache_key, false, $this->error_ttl );
             return false;
         }
@@ -130,8 +129,8 @@ class MyTheme_GitHub_Updater {
     /**
      * GitHubs zipball_url erzeugt einen Ordner wie "owner-repo-<hash>".
      * WordPress erwartet beim Update aber einen Ordner mit dem Theme-Slug
-     * ("borndigital"), sonst wird das Theme in einen falschen Ordner
-     * installiert bzw. das bestehende Theme wird nicht sauber überschrieben.
+     * ("borndigital"), sonst wird ein zusätzlicher, falsch benannter Ordner
+     * installiert statt das bestehende Theme zu aktualisieren.
      */
     public function fix_source_folder_name( $source, $remote_source, $upgrader, $hook_extra ) {
         global $wp_filesystem;
@@ -142,12 +141,20 @@ class MyTheme_GitHub_Updater {
 
         $corrected_source = trailingslashit( $remote_source ) . MYTHEME_SLUG . '/';
 
-        if ( $source !== $corrected_source && $wp_filesystem ) {
-            if ( $wp_filesystem->move( $source, $corrected_source, true ) ) {
-                return $corrected_source;
-            }
-            error_log( 'MyTheme Updater: Konnte Ordner nicht umbenennen von ' . $source . ' nach ' . $corrected_source );
+        if ( $source === $corrected_source ) {
+            return $source;
         }
+
+        if ( ! $wp_filesystem ) {
+            error_log( 'MyTheme Updater: $wp_filesystem nicht verfügbar, Ordner konnte nicht umbenannt werden.' );
+            return $source;
+        }
+
+        if ( $wp_filesystem->move( $source, $corrected_source, true ) ) {
+            return $corrected_source;
+        }
+
+        error_log( 'MyTheme Updater: Konnte Ordner nicht umbenennen von ' . $source . ' nach ' . $corrected_source );
 
         return $source;
     }
